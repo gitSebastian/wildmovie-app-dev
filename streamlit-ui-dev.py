@@ -50,7 +50,7 @@ def load_model_artifacts():
         st.exception(e)
         st.stop()
 
-df_concat, feature_columns, scaler, nn_model = load_model_artifacts()
+#df_concat, feature_columns, scaler, nn_model = load_model_artifacts()
 
 
 # =============================================================
@@ -411,7 +411,10 @@ if user_performed_search:
 
 else:
     # pas de recherche, affiche "Actuellement en salles"
-    promo_movie_ids = pick_random_recent_movies()
+    st.title("WildMovie debug mode")
+    st.write("App runs without loading any model.")
+
+"""     promo_movie_ids = pick_random_recent_movies()
     st.markdown(
         '<h3 class="title-reco">Actuellement à l\'affiche:</h3>', 
         unsafe_allow_html=True
@@ -421,7 +424,7 @@ else:
     for i in range(len(promo_movie_ids)):
         with promo_columns[i]:
             promo_movie_data = fetch_movie_details_from_api(promo_movie_ids[i])
-            display_movie_card(promo_movie_data)
+            display_movie_card(promo_movie_data) """
 
 
 # =============================================================
