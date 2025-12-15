@@ -2,5 +2,7 @@ streamlit
 pandas
 requests
 joblib
-numpy
+pyarrow
 scikit-learn
+scipy
+numpy
