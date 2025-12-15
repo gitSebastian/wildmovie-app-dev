@@ -1,9 +1,8 @@
-streamlit
+numpy
 pandas
-requests
-joblib
-pyarrow
 scikit-learn
 scipy
-numpy
-psutil
+streamlit
+joblib
+pyarrow
+requests
