@@ -10,6 +10,53 @@ from pathlib import Path
 
 st.set_page_config(page_title="WildMovies Debug", layout="wide")
 
+def safe_list_dir(p: Path):
+    try:
+        return sorted([x.name for x in p.iterdir()])
+    except Exception as e:
+        return [f"<cannot list dir: {type(e).__name__}: {e}>"]
+
+def is_lfs_pointer(path: Path) -> bool:
+    try:
+        with open(path, "rb") as f:
+            head = f.read(200)
+        return head.startswith(b"version https://git-lfs.github.com/spec") or (b"git-lfs" in head)
+    except Exception:
+        return False
+
+def report_file(p: Path):
+    st.write(f"Path: {p}")
+    st.write("Exists:", p.exists())
+    if p.exists():
+        st.write("Size:", p.stat().st_size)
+        st.write("LFS pointer:", is_lfs_pointer(p))
+
+base = Path(__file__).parent
+st.write("Python:", sys.version)
+st.write("Platform:", platform.platform())
+st.write("CWD:", os.getcwd())
+st.write("__file__:", __file__)
+st.write("Script folder:", str(base.resolve()))
+st.write("Top-level contents:", safe_list_dir(base))
+
+files_dir = base / "files"
+img_dir = base / "img"
+st.write("files_dir contents:", safe_list_dir(files_dir))
+st.write("img_dir contents:", safe_list_dir(img_dir))
+
+for name in ["df_concat.parquet","feature_columns.csv","scaler.joblib","nn_model.joblib"]:
+    report_file(files_dir / name)
+
+# Parquet engine check
+try:
+    import pyarrow  # noqa
+    st.success("pyarrow import OK")
+except Exception as e:
+    st.error(f"pyarrow import FAILED: {type(e).__name__}: {e}")
+
+st.stop()
+
+
 def show_boot_diagnostics():
     st.write("Python:", sys.version)
     st.write("Platform:", platform.platform())
