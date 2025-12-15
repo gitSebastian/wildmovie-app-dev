@@ -32,12 +32,14 @@ def load_model_artifacts():
     movies_dataframe = pd.read_parquet(model_files_folder / "df_concat.parquet")
     features_csv = pd.read_csv(model_files_folder / "feature_columns.csv")
     feature_column_names = features_csv["feature"].tolist()
-    data_scaler = joblib.load(model_files_folder / "scaler.joblib")
-    nearest_neighbors_model = joblib.load(model_files_folder / "nn_model.joblib", mmap_mode="r")
-    
-    return movies_dataframe, feature_column_names, data_scaler, nearest_neighbors_model
+    nearest_neighbors_model = joblib.load(
+        model_files_folder / "nn_model.joblib",
+        mmap_mode="r"
+    )
 
-df_concat, feature_columns, scaler, nn_model = load_model_artifacts()
+    return movies_dataframe, feature_column_names, nearest_neighbors_model
+
+df_concat, feature_columns, nn_model = load_model_artifacts()
 
 # =============================================================
 # img --> base64 (img de fond & logo)
@@ -143,22 +145,24 @@ def fetch_movie_details_from_api(imdb_id):
 # =============================================================
 
 # fonction pour recommendations
+from scipy.sparse import csr_matrix
+
 def get_movie_recommendations(imdb_id, number_of_recommendations):
-    # trouver le film
     movie_row_index = df_concat.index[df_concat["ID_film"] == imdb_id][0]
-    
-    # extraire et scaler les features
-    movie_features = df_concat.loc[[movie_row_index], feature_columns]
-    scaled_features = scaler.transform(movie_features)
-    
-    # trouver les voisins
-    distances, indices = nn_model.kneighbors(scaled_features, n_neighbors=number_of_recommendations + 1)
-    
-    # convertir indices en IDs imdb
+
+    movie_features_sparse = csr_matrix(
+        df_concat.loc[[movie_row_index], feature_columns].values,
+        dtype=np.float32
+    )
+
+    distances, indices = nn_model.kneighbors(
+        movie_features_sparse,
+        n_neighbors=number_of_recommendations + 1
+    )
+
     neighbor_ids = df_concat.iloc[indices[0]]["ID_film"].tolist()
-    
-    # enlever le film original et retourner
     neighbor_ids.remove(imdb_id)
+
     return neighbor_ids
 
 # fonction pour films aléatoires à l'ouverture de page
