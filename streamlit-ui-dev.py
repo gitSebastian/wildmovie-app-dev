@@ -21,6 +21,19 @@ import joblib
 current_script_folder = Path(__file__).parent
 images_folder = current_script_folder / "img"
 model_files_folder = current_script_folder / "files"
+model_files_folder.mkdir(exist_ok=True)
+
+NN_MODEL_URL = "https://www.dropbox.com/scl/fi/tsqrrnadooqdlfe7ui6ae/nn_model.joblib?rlkey=8kzvsq07zegmz121a6uhdld09&dl=1"
+
+def download_if_missing(path: Path, url: str) -> Path:
+    if not path.exists():
+        with requests.get(url, stream=True, timeout=60) as r:
+            r.raise_for_status()
+            with open(path, "wb") as f:
+                for chunk in r.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
+    return path
 
 # =============================================================
 # charger le modèle & data
@@ -33,8 +46,10 @@ def load_model_artifacts():
     features_csv = pd.read_csv(model_files_folder / "feature_columns.csv")
     feature_column_names = features_csv["feature"].tolist()
     data_scaler = joblib.load(model_files_folder / "scaler.joblib")
-    nearest_neighbors_model = joblib.load(model_files_folder / "nn_model.joblib")
-    
+
+    nn_path = download_if_missing(model_files_folder / "nn_model.joblib", NN_MODEL_URL)
+    nearest_neighbors_model = joblib.load(nn_path)
+
     return movies_dataframe, feature_column_names, data_scaler, nearest_neighbors_model
 
 df_concat, feature_columns, scaler, nn_model = load_model_artifacts()
