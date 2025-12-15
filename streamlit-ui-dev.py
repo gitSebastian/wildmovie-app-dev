@@ -35,8 +35,7 @@ def load_model_artifacts():
     feature_column_names = features_csv["feature"].tolist()
 
     artifacts = joblib.load(
-        model_files_folder / "nn_model.joblib",
-        mmap_mode="r"
+    model_files_folder / "nn_model.joblib"
     )
 
     nn_model = artifacts["model"]
