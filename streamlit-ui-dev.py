@@ -13,6 +13,7 @@ import base64
 import random
 from pathlib import Path
 import joblib
+import numpy as np
 
 # =============================================================
 # chemin
@@ -32,12 +33,16 @@ def load_model_artifacts():
     movies_dataframe = pd.read_parquet(model_files_folder / "df_concat.parquet")
     features_csv = pd.read_csv(model_files_folder / "feature_columns.csv")
     feature_column_names = features_csv["feature"].tolist()
-    nearest_neighbors_model = joblib.load(
+
+    artifacts = joblib.load(
         model_files_folder / "nn_model.joblib",
         mmap_mode="r"
     )
 
-    return movies_dataframe, feature_column_names, nearest_neighbors_model
+    nn_model = artifacts["model"]
+    X_sparse = artifacts["X"]  # not strictly needed, but kept for completeness
+
+    return movies_dataframe, feature_column_names, nn_model
 
 df_concat, feature_columns, nn_model = load_model_artifacts()
 
