@@ -1,22 +1,9 @@
-# =============================================================
-# streamlit run "WCS/github/wildmovies-app-dev/streamlit-ui-dev.py"
-# =============================================================
-
-# =============================================================
-# libraries
-# =============================================================
-
+import os, time
 import streamlit as st
 import pandas as pd
 import requests
-import base64
-import random
-from pathlib import Path
 import joblib
-
-# =============================================================
-# chemin
-# =============================================================
+from pathlib import Path
 
 current_script_folder = Path(__file__).parent
 images_folder = current_script_folder / "img"
@@ -26,33 +13,45 @@ model_files_folder.mkdir(exist_ok=True)
 NN_MODEL_URL = "https://www.dropbox.com/scl/fi/tsqrrnadooqdlfe7ui6ae/nn_model.joblib?rlkey=8kzvsq07zegmz121a6uhdld09&dl=1"
 
 def download_if_missing(path: Path, url: str) -> Path:
-    if not path.exists():
-        with requests.get(url, stream=True, timeout=60) as r:
-            r.raise_for_status()
-            with open(path, "wb") as f:
-                for chunk in r.iter_content(chunk_size=8192):
-                    if chunk:
-                        f.write(chunk)
+    if not path.exists() or path.stat().st_size < 1024:  # guard against partial files
+        try:
+            st.write(f"Downloading {path.name} ...")
+            with requests.get(url, stream=True, timeout=120) as r:
+                r.raise_for_status()
+                tmp = path.with_suffix(path.suffix + ".part")
+                with open(tmp, "wb") as f:
+                    for chunk in r.iter_content(chunk_size=1_048_576):
+                        if chunk:
+                            f.write(chunk)
+                tmp.replace(path)  # atomic move
+        except Exception as e:
+            st.exception(e)
+            st.stop()
     return path
 
-# =============================================================
-# charger le modèle & data
-# =============================================================
-
-# @st.cache_resource garde tout dans le cache
-@st.cache_resource
+@st.cache_resource(show_spinner="Loading model artifacts...")
 def load_model_artifacts():
-    movies_dataframe = pd.read_parquet(model_files_folder / "df_concat.parquet")
-    features_csv = pd.read_csv(model_files_folder / "feature_columns.csv")
-    feature_column_names = features_csv["feature"].tolist()
-    data_scaler = joblib.load(model_files_folder / "scaler.joblib")
-
-    nn_path = download_if_missing(model_files_folder / "nn_model.joblib", NN_MODEL_URL)
-    nearest_neighbors_model = joblib.load(nn_path)
-
-    return movies_dataframe, feature_column_names, data_scaler, nearest_neighbors_model
+    try:
+        st.write("Reading parquet...")
+        movies_dataframe = pd.read_parquet(model_files_folder / "df_concat.parquet")
+        st.write("Reading features CSV...")
+        features_csv = pd.read_csv(model_files_folder / "feature_columns.csv")
+        feature_column_names = features_csv["feature"].tolist()
+        st.write("Loading scaler...")
+        data_scaler = joblib.load(model_files_folder / "scaler.joblib")
+        st.write("Ensuring NN model present...")
+        nn_path = download_if_missing(model_files_folder / "nn_model.joblib", NN_MODEL_URL)
+        st.write(f"NN model size: {nn_path.stat().st_size/1_048_576:.1f} MB")
+        st.write("Loading NN model (this can take time)...")
+        nearest_neighbors_model = joblib.load(nn_path)
+        st.write("Artifacts loaded.")
+        return movies_dataframe, feature_column_names, data_scaler, nearest_neighbors_model
+    except Exception as e:
+        st.exception(e)
+        st.stop()
 
 df_concat, feature_columns, scaler, nn_model = load_model_artifacts()
+
 
 # =============================================================
 # img --> base64 (img de fond & logo)
