@@ -24,6 +24,17 @@ images_folder = current_script_folder / "img"
 model_files_folder = current_script_folder / "files"
 
 # =============================================================
+# réglages
+# =============================================================
+
+st.set_page_config(
+    page_title="Wild Movies",
+    page_icon="🎬",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
+
+# =============================================================
 # charger le modèle & data
 # =============================================================
 
