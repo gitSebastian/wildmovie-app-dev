@@ -1,5 +1,5 @@
 # =============================================================
-# streamlit run "WCS/PROJET 2/wildmovies-app/streamlit-ui-dev2.py"
+# streamlit run "WCS/github/wildmovie-app-dev/streamlit-ui-dev.py"
 # =============================================================
 
 # =============================================================
@@ -29,21 +29,15 @@ model_files_folder = current_script_folder / "files"
 
 # @st.cache_resource garde tout dans le cache
 @st.cache_resource
-def load_model_artifacts():
-    movies_dataframe = pd.read_parquet(model_files_folder / "df_concat.parquet")
-    features_csv = pd.read_csv(model_files_folder / "feature_columns.csv")
-    feature_column_names = features_csv["feature"].tolist()
-
-    artifacts = joblib.load(
-    model_files_folder / "nn_model.joblib"
-    )
-
+def load_light_model():
+    artifacts = joblib.load(model_files_folder / "nn_model_light.joblib")
     nn_model = artifacts["model"]
-    X_sparse = artifacts["X"]  # not strictly needed, but kept for completeness
+    id_by_index = artifacts["id_by_index"]
+    title_by_index = artifacts["title_by_index"]
+    title_to_id = {title.lower(): mid for title, mid in zip(title_by_index, id_by_index)}
+    return nn_model, id_by_index, title_by_index, title_to_id
 
-    return movies_dataframe, feature_column_names, nn_model
-
-df_concat, feature_columns, nn_model = load_model_artifacts()
+nn_model, id_by_index, title_by_index, title_to_id = load_light_model()
 
 # =============================================================
 # img --> base64 (img de fond & logo)
@@ -85,14 +79,9 @@ def set_background_image(image_file_path, opacity=0.3):
 # =============================================================
 
 # fonction de recherche dans le modèle
-def find_movie_id_by_title(search_title, movies_dataframe):
-    matches = movies_dataframe[movies_dataframe["Titre"].str.lower() == search_title.strip().lower()]
-    
-    if len(matches) == 0:
-        st.error("Film non trouvé dans la base de données.")
-        return None
-    
-    return matches.iloc[0]["ID_film"]
+
+def find_movie_id_by_title(search_title):
+    return title_to_id.get(search_title.strip().lower())
 
 # API: fonction de récupération de posters & infos d'imdbapi.dev
 # --> à changer pour TMDb pour avoir les versions localisées
@@ -149,34 +138,19 @@ def fetch_movie_details_from_api(imdb_id):
 # =============================================================
 
 # fonction pour recommendations
-from scipy.sparse import csr_matrix
 
-def get_movie_recommendations(imdb_id, number_of_recommendations):
-    movie_row_index = df_concat.index[df_concat["ID_film"] == imdb_id][0]
 
-    movie_features_sparse = csr_matrix(
-        df_concat.loc[[movie_row_index], feature_columns].values,
-        dtype=np.float32
-    )
-
-    distances, indices = nn_model.kneighbors(
-        movie_features_sparse,
-        n_neighbors=number_of_recommendations + 1
-    )
-
-    neighbor_ids = df_concat.iloc[indices[0]]["ID_film"].tolist()
-    neighbor_ids.remove(imdb_id)
-
-    return neighbor_ids
+def get_movie_recommendations(imdb_id, number_of_recommendations=3):
+    idx = id_by_index.index(imdb_id)
+    # pass _fit_X[idx] directly, not wrapped in a list
+    distances, indices = nn_model.kneighbors(nn_model._fit_X[idx], n_neighbors=number_of_recommendations+1)
+    neighbor_indices = [i for i in indices[0] if i != idx]
+    return [id_by_index[i] for i in neighbor_indices]
 
 # fonction pour films aléatoires à l'ouverture de page
 # critère: l'année
 def pick_random_recent_movies(number_of_movies=3, minimum_year=2018):
-    year_values = pd.to_numeric(df_concat["Année"], errors="coerce")
-    recent_movies = df_concat[year_values >= minimum_year]
-    unique_ids = recent_movies["ID_film"].dropna().drop_duplicates().tolist()
-    
-    return random.sample(unique_ids, k=number_of_movies)
+    return random.sample(id_by_index, k=number_of_movies)
 
 
 # =============================================================
@@ -372,50 +346,28 @@ st.markdown("---")
 
 user_performed_search = search_button_clicked and user_search_input
 
-if user_performed_search:
-    
-    found_imdb_id = find_movie_id_by_title(user_search_input, df_concat)
-    if found_imdb_id is None:
-        st.stop()
-    
-    searched_movie_data = fetch_movie_details_from_api(found_imdb_id)
-    if searched_movie_data is None:
-        st.stop()
-    
-    # film recherché
-    display_searched_movie(searched_movie_data)
-    st.markdown("---")
-    
-    st.markdown(
-        f'<h3 class="title-reco">Similaires à {searched_movie_data["title"]}:</h3>',
-        unsafe_allow_html=True
-    )
-    
-    recommended_movie_ids = get_movie_recommendations(
-        imdb_id=found_imdb_id,
-        number_of_recommendations=3
-    )
-    
-    recommendation_columns = st.columns(3, gap="medium")
-    
-    for i in range(len(recommended_movie_ids)):
-        with recommendation_columns[i]:
-            recommendation_data = fetch_movie_details_from_api(recommended_movie_ids[i])
-            display_movie_card(recommendation_data, show_full_card=True)
-
+if search_button_clicked and user_search_input:
+    imdb_id = find_movie_id_by_title(user_search_input)
+    if imdb_id:
+        movie_data = fetch_movie_details_from_api(imdb_id)
+        if movie_data:
+            display_searched_movie(movie_data)
+            st.markdown("---")
+            st.markdown(f'<h3 class="title-reco">Similaires à {movie_data["title"]}:</h3>', unsafe_allow_html=True)
+            reco_ids = get_movie_recommendations(imdb_id, number_of_recommendations=3)
+            cols = st.columns(3, gap="medium")
+            for i, rid in enumerate(reco_ids):
+                with cols[i]:
+                    reco_data = fetch_movie_details_from_api(rid)
+                    display_movie_card(reco_data, show_full_card=True)
 else:
-    # pas de recherche, affiche "Actuellement en salles"
-    promo_movie_ids = pick_random_recent_movies()
-    st.markdown(
-        '<h3 class="title-reco">Actuellement à l\'affiche:</h3>', 
-        unsafe_allow_html=True
-    )
-    promo_columns = st.columns(3, gap="medium")
-    
-    for i in range(len(promo_movie_ids)):
-        with promo_columns[i]:
-            promo_movie_data = fetch_movie_details_from_api(promo_movie_ids[i])
-            display_movie_card(promo_movie_data)
+    st.markdown('<h3 class="title-reco">Actuellement à l\'affiche:</h3>', unsafe_allow_html=True)
+    promo_ids = pick_random_recent_movies()
+    cols = st.columns(3, gap="medium")
+    for i, pid in enumerate(promo_ids):
+        with cols[i]:
+            promo_data = fetch_movie_details_from_api(pid)
+            display_movie_card(promo_data)
 
 
 # =============================================================
