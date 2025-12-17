@@ -1,5 +1,5 @@
 # =============================================================
-# streamlit run "WCS/github/wildmovie-app-dev/streamlit-ui-dev.py"
+# streamlit run "WCS/github/wildmovie-app-dev/app.py"
 # =============================================================
 
 # =============================================================
@@ -212,7 +212,21 @@ custom_css = """
         --button-accent-color-2: #7248B2;
         --white: #EAEAEA;
     }
-    
+
+    /* logo */
+    .fixed-logo {
+    position: fixed;
+    top: 100px;
+    left: 60px;
+    z-index: 9999;
+    width: 120px;
+    }
+
+    .fixed-logo img { 
+    width: 100%; 
+    height: auto; 
+    }
+
     /* Style for horizontal lines */
     hr {
         margin-top: 20px !important;
@@ -284,6 +298,10 @@ custom_css = """
         white-space: pre-wrap !important;
         word-wrap: break-word !important;
     }
+
+    [data-testid="stSidebarNav"] {
+        display: none !important;
+    }
     
     /* Sidebar logo spacing */
     .sidebar-logo {
@@ -299,19 +317,6 @@ st.markdown(custom_css, unsafe_allow_html=True)
 # =============================================================
 
 logo_html = f"""
-<style>
-.fixed-logo {{
-    position: fixed;
-    top: 100px;
-    left: 60px;
-    z-index: 9999;
-    width: 120px;
-}}
-.fixed-logo img {{ 
-    width: 100%; 
-    height: auto; 
-}}
-</style>
 <div class="fixed-logo">
     <img src="data:image/svg+xml;base64,{logo_base64}" alt="Logo">
 </div>
