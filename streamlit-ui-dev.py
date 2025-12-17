@@ -7,13 +7,11 @@
 # =============================================================
 
 import streamlit as st
-import pandas as pd
 import requests
 import base64
 import random
 from pathlib import Path
 import joblib
-import numpy as np
 
 # =============================================================
 # chemin
@@ -46,6 +44,7 @@ def load_light_model():
     id_by_index = artifacts["id_by_index"]
     title_by_index = artifacts["title_by_index"]
     title_to_id = {title.lower(): mid for title, mid in zip(title_by_index, id_by_index)}
+    
     return nn_model, id_by_index, title_by_index, title_to_id
 
 nn_model, id_by_index, title_by_index, title_to_id = load_light_model()
@@ -90,57 +89,36 @@ def set_background_image(image_file_path, opacity=0.3):
 # =============================================================
 
 # fonction de recherche dans le modèle
-
 def find_movie_id_by_title(search_title):
-    return title_to_id.get(search_title.strip().lower())
+    imdb_id = title_to_id.get(search_title.strip().lower())
+    
+    if imdb_id is None:
+        st.error("Film non trouvé dans la base de données.")
+    
+    return imdb_id
 
 # API: fonction de récupération de posters & infos d'imdbapi.dev
 # --> à changer pour TMDb pour avoir les versions localisées
 def fetch_movie_details_from_api(imdb_id):
-     # API URL
     api_url = f"https://api.imdbapi.dev/titles/{imdb_id}"
     
     try:
         api_response = requests.get(api_url)
-
-        if api_response.status_code != 200:
-            st.error(f"""
-                Erreur API (status {api_response.status_code}):
-                URL: {api_url}
-                Response: {api_response.text}
-            """)
-            return None
-
         response_data = api_response.json()
         
-        # ce que nous voulons
-        movie_title = response_data.get("primaryTitle", "Unknown Title")
-        movie_plot = response_data.get("plot", "No plot available.")
-        primary_image_data = response_data.get("primaryImage", {})
-        poster_url = primary_image_data.get("url")
-        movie_genres = response_data.get("genres", [])
-        rating_data = response_data.get("rating", {})
-        movie_rating = rating_data.get("aggregateRating")
-        
-        # dictionnaire avec le tout
         movie_details = {
             "id": imdb_id,
-            "title": movie_title,
-            "plot": movie_plot,
-            "poster": poster_url,
-            "genres": movie_genres,
-            "rating": movie_rating
+            "title": response_data.get("primaryTitle", "Unknown Title"),
+            "plot": response_data.get("plot", "No plot available."),
+            "poster": response_data.get("primaryImage", {}).get("url"),
+            "genres": response_data.get("genres", []),
+            "rating": response_data.get("rating", {}).get("aggregateRating")
         }
         
         return movie_details
         
-    except Exception as error:
-        st.error(f"""
-            Erreur lors de la récupération des données:
-            URL: {api_url}
-            Type d'erreur: {type(error).__name__}
-            Message: {error}
-        """)
+    except:
+        st.error(f"Erreur lors de la récupération: {api_url}")
         return None
 
 
@@ -149,18 +127,38 @@ def fetch_movie_details_from_api(imdb_id):
 # =============================================================
 
 # fonction pour recommendations
-
-
 def get_movie_recommendations(imdb_id, number_of_recommendations=3):
-    idx = id_by_index.index(imdb_id)
-    # pass _fit_X[idx] directly, not wrapped in a list
-    distances, indices = nn_model.kneighbors(nn_model._fit_X[idx], n_neighbors=number_of_recommendations+1)
-    neighbor_indices = [i for i in indices[0] if i != idx]
-    return [id_by_index[i] for i in neighbor_indices]
+    # trouver la position du film dans la liste
+    film_index = id_by_index.index(imdb_id)
+    
+    film_features = nn_model._fit_X[film_index]
+    
+    # trouver les voisins les plus proches (+1 car le film lui-même est inclus)
+    distances, indices = nn_model.kneighbors(film_features, n_neighbors=number_of_recommendations + 1)
 
-# fonction pour films aléatoires à l'ouverture de page
-# critère: l'année
-def pick_random_recent_movies(number_of_movies=3, minimum_year=2018):
+    # Debug info
+    st.write(f"Film index: {film_index}")
+    st.write(f"Neighbor indices: {indices[0]}")
+    st.write(f"Is film_index in neighbors? {film_index in indices[0]}")
+    
+    # enlever le film original de la liste
+    neighbor_indices = []
+    for i in indices[0]:
+        if i != film_index:
+            neighbor_indices.append(i)
+
+    # limiter au nombre demandé
+    neighbor_indices = neighbor_indices[:number_of_recommendations]
+    
+    # convertir les recos en IDs imdb
+    neighbor_ids = []
+    for i in neighbor_indices:
+        neighbor_ids.append(id_by_index[i])
+    
+    return neighbor_ids
+
+# fonction pour 3 films aléatoires à l'ouverture de page
+def pick_random_recent_movies(number_of_movies=3):
     return random.sample(id_by_index, k=number_of_movies)
 
 
@@ -357,7 +355,7 @@ st.markdown("---")
 
 user_performed_search = search_button_clicked and user_search_input
 
-if search_button_clicked and user_search_input:
+if user_performed_search:
     imdb_id = find_movie_id_by_title(user_search_input)
     if imdb_id:
         movie_data = fetch_movie_details_from_api(imdb_id)
