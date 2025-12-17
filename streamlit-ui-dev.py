@@ -135,11 +135,6 @@ def get_movie_recommendations(imdb_id, number_of_recommendations=3):
     
     # trouver les voisins les plus proches (+1 car le film lui-même est inclus)
     distances, indices = nn_model.kneighbors(film_features, n_neighbors=number_of_recommendations + 1)
-
-    # Debug info
-    st.write(f"Film index: {film_index}")
-    st.write(f"Neighbor indices: {indices[0]}")
-    st.write(f"Is film_index in neighbors? {film_index in indices[0]}")
     
     # enlever le film original de la liste
     neighbor_indices = []
