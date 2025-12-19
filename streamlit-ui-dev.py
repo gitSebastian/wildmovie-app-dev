@@ -398,7 +398,7 @@ sidebar_logo_html = f"""
 st.sidebar.markdown(sidebar_logo_html, unsafe_allow_html=True)
 
 # info projet
-st.sidebar.code("# WCS PROJET 2:\n\nMoteur de recommendation pour films.")
+st.sidebar.code("# WCS PROJET 2:\n\nMoteur de recommandation pour films.")
 
 # l'équipe
 team_info = """
